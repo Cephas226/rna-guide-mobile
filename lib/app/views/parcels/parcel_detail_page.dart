@@ -1,5 +1,5 @@
 // ============================================================
-// RNA Guide - Détail Parcelle RNA (complet — 4 onglets)
+// RNA Guide - Détail Parcelle RNA (complet — 5 onglets)
 // ============================================================
 
 import 'dart:io';
@@ -18,6 +18,8 @@ import '../../controllers/inventory_controller.dart' show PhotoController;
 import '../../controllers/parcel_controller.dart';
 import '../../widgets/common_widgets.dart';
 import '../../routes/app_pages.dart';
+import '../rna/rna_operation_sheet.dart';
+import '../../controllers/rna_controller.dart';
 
 class ParcelDetailPage extends StatefulWidget {
   const ParcelDetailPage({super.key});
@@ -32,17 +34,19 @@ class _ParcelDetailPageState extends State<ParcelDetailPage>
   final _invCtrl = Get.put(InventoryController(), permanent: false);
   final _explCtrl = Get.put(ExploitationController(), permanent: false);
   final _photoCtrl = Get.put(PhotoController(), permanent: false);
+  final _rnaCtrl = Get.put(RnaController(), permanent: false);
 
   @override
   void initState() {
     super.initState();
     parcel = Get.arguments as ParcelModel;
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
     _invCtrl.loadByParcel(parcel.id);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) {
         if (_tabs.index == 2) _explCtrl.loadByParcel(parcel.id);
         if (_tabs.index == 3) _photoCtrl.loadByParcel(parcel.id);
+        if (_tabs.index == 4) _rnaCtrl.loadByParcel(parcel.id);
       }
     });
   }
@@ -99,6 +103,7 @@ class _ParcelDetailPageState extends State<ParcelDetailPage>
                 Tab(icon: Icon(Icons.list_alt, size: 18), text: 'Inventaires'),
                 Tab(icon: Icon(Icons.shopping_basket_outlined, size: 18), text: 'Récoltes'),
                 Tab(icon: Icon(Icons.photo_camera_outlined, size: 18), text: 'Photos'),
+                Tab(icon: Icon(Icons.eco_outlined, size: 18), text: 'RNA'),
               ],
             )),
             pinned: true,
@@ -109,6 +114,7 @@ class _ParcelDetailPageState extends State<ParcelDetailPage>
           _InventoryTab(parcel: parcel, ctrl: _invCtrl),
           _ExploitationTab(parcel: parcel, ctrl: _explCtrl),
           _PhotoTab(parcel: parcel, ctrl: _photoCtrl),
+          _RnaTab(parcel: parcel, ctrl: _rnaCtrl),
         ]),
       ),
       floatingActionButton: AnimatedBuilder(
@@ -125,6 +131,7 @@ class _ParcelDetailPageState extends State<ParcelDetailPage>
               onPressed: () => _showPhotoMenu(context),
               icon: const Icon(Icons.camera_alt), label: const Text('Photo'),
               backgroundColor: const Color(0xFF9B5DE5)),
+          4 => const SizedBox.shrink(),
           _ => const SizedBox.shrink(),
         },
       ),
@@ -525,6 +532,199 @@ class _PhotoThumbnail extends StatelessWidget {
   Widget _placeholder() => Container(
     color: AppTheme.primary.withOpacity(0.08),
     child: const Center(child: Icon(Icons.photo, size: 32, color: AppTheme.primary)),
+  );
+}
+
+// ── Onglet RNA ────────────────────────────────────────────────
+
+class _RnaTab extends StatelessWidget {
+  final ParcelModel parcel;
+  final RnaController ctrl;
+  const _RnaTab({required this.parcel, required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) => Obx(() {
+    if (ctrl.isLoading.value) {
+      return ListView(padding: const EdgeInsets.all(16),
+        children: List.generate(3, (_) => const RnaShimmerCard(height: 80)));
+    }
+
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 80), children: [
+      // ── Section Entretien ──
+      _RnaSectionHeader(
+        title: 'Entretien des rejets',
+        icon: Icons.content_cut_outlined,
+        color: AppTheme.primary,
+        onAdd: () async {
+          final added = await RnaOperationSheet.show(context,
+            parcelId: parcel.id, category: 'ENTRETIEN');
+          if (added) ctrl.loadByParcel(parcel.id);
+        },
+      ),
+      if (ctrl.entretienOps.isEmpty)
+        _RnaEmptySection(
+          message: 'Aucune opération d\'entretien enregistrée',
+          onAdd: () async {
+            final added = await RnaOperationSheet.show(context,
+              parcelId: parcel.id, category: 'ENTRETIEN');
+            if (added) ctrl.loadByParcel(parcel.id);
+          },
+        )
+      else
+        ...ctrl.entretienOps.map((op) => _RnaOperationCard(
+          op: op, ctrl: ctrl,
+          onDelete: () => ctrl.delete(op.localId, op.category),
+        )),
+
+      const SizedBox(height: 20),
+
+      // ── Section CES/DRS ──
+      _RnaSectionHeader(
+        title: 'Aménagements CES/DRS',
+        icon: Icons.terrain_outlined,
+        color: AppTheme.secondary,
+        onAdd: () async {
+          final added = await RnaOperationSheet.show(context,
+            parcelId: parcel.id, category: 'CES_DRS');
+          if (added) ctrl.loadByParcel(parcel.id);
+        },
+      ),
+      if (ctrl.cesDrsOps.isEmpty)
+        _RnaEmptySection(
+          message: 'Aucun aménagement CES/DRS enregistré',
+          onAdd: () async {
+            final added = await RnaOperationSheet.show(context,
+              parcelId: parcel.id, category: 'CES_DRS');
+            if (added) ctrl.loadByParcel(parcel.id);
+          },
+        )
+      else
+        ...ctrl.cesDrsOps.map((op) => _RnaOperationCard(
+          op: op, ctrl: ctrl,
+          onDelete: () => ctrl.delete(op.localId, op.category),
+        )),
+    ]);
+  });
+}
+
+class _RnaSectionHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onAdd;
+  const _RnaSectionHeader({required this.title, required this.icon,
+    required this.color, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(children: [
+      Icon(icon, size: 18, color: color),
+      const SizedBox(width: 8),
+      Expanded(child: Text(title,
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color))),
+      IconButton(
+        icon: Icon(Icons.add_circle_outline, color: color),
+        onPressed: onAdd,
+        tooltip: 'Ajouter',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+      ),
+    ]),
+  );
+}
+
+class _RnaEmptySection extends StatelessWidget {
+  final String message;
+  final VoidCallback onAdd;
+  const _RnaEmptySection({required this.message, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(children: [
+      Text(message,
+        style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        textAlign: TextAlign.center),
+      const SizedBox(height: 10),
+      TextButton.icon(
+        icon: const Icon(Icons.add, size: 16),
+        label: const Text('Ajouter', style: TextStyle(fontSize: 13)),
+        onPressed: onAdd,
+      ),
+    ]),
+  );
+}
+
+class _RnaOperationCard extends StatelessWidget {
+  final RnaOperationModel op;
+  final RnaController ctrl;
+  final VoidCallback onDelete;
+  const _RnaOperationCard({required this.op, required this.ctrl, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) => Dismissible(
+    key: Key(op.localId),
+    direction: DismissDirection.endToStart,
+    background: Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.error, borderRadius: BorderRadius.circular(12)),
+      child: const Icon(Icons.delete, color: Colors.white),
+    ),
+    confirmDismiss: (_) async {
+      return await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Supprimer cette opération?'),
+          content: const Text('Action irréversible.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+            TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Supprimer',
+                style: TextStyle(color: AppTheme.error))),
+          ],
+        ),
+      ) ?? false;
+    },
+    onDismissed: (_) => onDelete(),
+    child: Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: (op.category == 'ENTRETIEN' ? AppTheme.primary : AppTheme.secondary)
+              .withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(child: Text(ctrl.typeIcon(op.operationType, op.category),
+            style: const TextStyle(fontSize: 18))),
+        ),
+        title: Text(ctrl.typeLabel(op.operationType, op.category),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        subtitle: Row(children: [
+          Text(op.monthYear,
+            style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          if (!op.isSynced) ...[
+            const SizedBox(width: 8),
+            const Icon(Icons.cloud_upload, size: 11, color: AppTheme.warning),
+          ],
+        ]),
+        trailing: op.notes != null
+          ? Tooltip(message: op.notes!, child: const Icon(Icons.notes, size: 16,
+              color: AppTheme.textSecondary))
+          : null,
+      ),
+    ),
   );
 }
 
