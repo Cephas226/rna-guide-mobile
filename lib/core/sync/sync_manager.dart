@@ -314,7 +314,19 @@ class SyncManager {
       await DatabaseHelper.instance.insert('formations', _mapFormationFromServer(f));
     }
 
-    _log.i('📥 Pull: ${users.length} users, ${parcels.length} parcelles, ${inventories.length} inventaires, ${formations.length} formations');
+    // ── Upsert espèces (catalogue de référence) ──
+    final species = delta['species'] as List? ?? [];
+    for (final sp in species) {
+      await DatabaseHelper.instance.insert('species', _mapSpeciesFromServer(sp));
+    }
+
+    // ── Upsert opérations RNA ──
+    final rnaOperations = delta['rnaOperations'] as List? ?? [];
+    for (final op in rnaOperations) {
+      await DatabaseHelper.instance.insert('rna_operations', _mapRnaOperationFromServer(op));
+    }
+
+    _log.i('📥 Pull: ${users.length} users, ${parcels.length} parcelles, ${inventories.length} inventaires, ${formations.length} formations, ${species.length} espèces, ${rnaOperations.length} ops RNA');
   }
 
   // ── Helpers mapping serveur → SQLite ──────────────────────
@@ -412,6 +424,36 @@ class SyncManager {
     'updated_at': f['updatedAt'],
   };
 
+  Map<String, dynamic> _mapSpeciesFromServer(Map<String, dynamic> sp) => {
+    'id': sp['id'],
+    'scientific_name': sp['scientificName'],
+    'local_name_fr': sp['localNameFr'],
+    'local_name_moore': sp['localNameMoore'],
+    'local_name_dioula': sp['localNameDioula'],
+    'local_name_fulfule': sp['localNameFulfule'],
+    'category': sp['category'],
+    'is_native': sp['isNative'] == true ? 1 : 0,
+    'ecological_role': sp['ecologicalRole'],
+    'image_url': sp['imageUrl'],
+    'created_at': sp['createdAt'] ?? DateTime.now().toIso8601String(),
+  };
+
+  Map<String, dynamic> _mapRnaOperationFromServer(Map<String, dynamic> op) => {
+    'id': op['id'],
+    'local_id': op['localId'] ?? op['id'],
+    'server_id': op['id'],
+    'parcel_id': op['parcelId'],
+    'user_id': op['userId'],
+    'category': op['category'],
+    'operation_type': op['operationType'],
+    'month': op['month'],
+    'year': op['year'],
+    'notes': op['notes'],
+    'sync_status': 'SYNCED',
+    'created_at': op['createdAt'] ?? DateTime.now().toIso8601String(),
+    'updated_at': op['updatedAt'] ?? DateTime.now().toIso8601String(),
+  };
+
   // ── Mettre à jour le server_id après création ─────────────
 
   Future<void> _updateEntityServerId(String entityType, String localId, String serverId) async {
@@ -420,6 +462,7 @@ class SyncManager {
       'inventory': 'inventories',
       'exploitation': 'exploitations',
       'photo': 'photos',
+      'rna_operation': 'rna_operations',
     };
     final table = tableMap[entityType];
     if (table == null) return;

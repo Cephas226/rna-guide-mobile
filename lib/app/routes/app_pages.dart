@@ -1,6 +1,7 @@
 // RNA Guide - Routes complètes
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../views/splash/splash_page.dart';
 import '../views/auth/login_page.dart';
 import '../views/auth/register_page.dart';
 import '../views/home/home_page.dart';
@@ -18,11 +19,17 @@ import '../controllers/parcel_controller.dart';
 import '../controllers/exploitation_controller.dart';
 import '../controllers/inventory_controller.dart';
 import '../controllers/profile_controller.dart';
+import '../controllers/rna_controller.dart';
 part 'app_routes.dart';
 
 class AppPages {
-  static const initial = Routes.login;
+  static const initial = Routes.splash;
   static final routes = [
+    GetPage(
+      name: Routes.splash,
+      page: () => const SplashPage(),
+      binding: BindingsBuilder(() => Get.lazyPut(() => AuthController(), fenix: true)),
+    ),
     GetPage(name: Routes.login, page: () => const LoginPage(),
       binding: BindingsBuilder(() => Get.lazyPut(() => AuthController(), fenix: true))),
     GetPage(name: Routes.register, page: () => const RegisterPage()),
@@ -37,6 +44,7 @@ class AppPages {
         Get.lazyPut(() => InventoryController());
         Get.lazyPut(() => ExploitationController());
         Get.lazyPut(() => PhotoController());
+        Get.lazyPut(() => RnaController());
       }),
       middlewares: [_AuthMiddleware()]),
     GetPage(name: Routes.parcelForm, page: () => const ParcelFormPage(), middlewares: [_AuthMiddleware()]),
