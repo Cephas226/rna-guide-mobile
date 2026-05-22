@@ -11,7 +11,7 @@ class DatabaseHelper {
   DatabaseHelper._internal();
 
   Database? _database;
-  static const int _version = 1;
+  static const int _version = 3;
   static const String _dbName = 'rna_guide.db';
 
   Future<Database> get database async {
@@ -114,12 +114,12 @@ class DatabaseHelper {
         id TEXT PRIMARY KEY,
         inventory_id TEXT NOT NULL,
         species_id TEXT NOT NULL,
-        total_pieds INTEGER NOT NULL,
-        selected_pieds INTEGER NOT NULL,
-        health_state TEXT DEFAULT 'BON',
-        height_cm REAL,
+        pieds_h1 INTEGER NOT NULL DEFAULT 0,
+        pieds_h2 INTEGER NOT NULL DEFAULT 0,
+        pieds_h3 INTEGER NOT NULL DEFAULT 0,
+        total_pieds INTEGER NOT NULL DEFAULT 0,
+        selected_pieds INTEGER NOT NULL DEFAULT 0,
         notes TEXT,
-        is_new_species INTEGER DEFAULT 0,
         FOREIGN KEY (inventory_id) REFERENCES inventories (id) ON DELETE CASCADE
       )
     ''');
@@ -197,6 +197,25 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
+      CREATE TABLE rna_operations (
+        id TEXT PRIMARY KEY,
+        local_id TEXT UNIQUE NOT NULL,
+        server_id TEXT,
+        parcel_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        operation_type TEXT NOT NULL,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        notes TEXT,
+        sync_status TEXT NOT NULL DEFAULT 'PENDING',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (parcel_id) REFERENCES parcels (id)
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE formations (
         id TEXT PRIMARY KEY,
         title_fr TEXT NOT NULL,
@@ -241,10 +260,41 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_inventories_parcel ON inventories (parcel_id)');
     await db.execute('CREATE INDEX idx_sync_queue_status ON sync_queue (status)');
     await db.execute('CREATE INDEX idx_exploitations_parcel ON exploitations (parcel_id)');
+    await db.execute('CREATE INDEX idx_rna_operations_parcel ON rna_operations (parcel_id)');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Migrations futures ici
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE inventory_species ADD COLUMN pieds_h1 INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE inventory_species ADD COLUMN pieds_h2 INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE inventory_species ADD COLUMN pieds_h3 INTEGER NOT NULL DEFAULT 0');
+      // SQLite < 3.35 does not support DROP COLUMN, so old columns (height_cm, health_state, is_new_species) remain but are ignored
+      // total_pieds and selected_pieds already exist — no need to add
+    }
+
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS rna_operations (
+          id TEXT PRIMARY KEY,
+          local_id TEXT UNIQUE NOT NULL,
+          server_id TEXT,
+          parcel_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          category TEXT NOT NULL,
+          operation_type TEXT NOT NULL,
+          month INTEGER NOT NULL,
+          year INTEGER NOT NULL,
+          notes TEXT,
+          sync_status TEXT NOT NULL DEFAULT 'PENDING',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (parcel_id) REFERENCES parcels (id)
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_rna_operations_parcel ON rna_operations (parcel_id)',
+      );
+    }
   }
 
   // ── Helpers génériques ─────────────────────────────────────
@@ -283,7 +333,7 @@ class DatabaseHelper {
 
   Future<void> clearAll() async {
     final db = await database;
-    final tables = ['sync_queue', 'photos', 'inventory_species', 'inventories', 'exploitations', 'photo_points', 'parcels', 'formations', 'species'];
+    final tables = ['sync_queue', 'photos', 'inventory_species', 'inventories', 'exploitations', 'rna_operations', 'photo_points', 'parcels', 'formations', 'species'];
     for (final table in tables) {
       await db.delete(table);
     }
