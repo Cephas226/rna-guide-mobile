@@ -343,45 +343,45 @@ class InventorySpeciesModel {
   final String id;
   final String inventoryId;
   final String speciesId;
-  int totalPieds;
+  int piedsH1;
+  int piedsH2;
+  int piedsH3;
   int selectedPieds;
-  String healthState;
-  double? heightCm;
   String? notes;
-  bool isNewSpecies;
   SpeciesModel? species;
 
   InventorySpeciesModel({
     required this.id,
     required this.inventoryId,
     required this.speciesId,
-    required this.totalPieds,
-    required this.selectedPieds,
-    this.healthState = 'BON',
-    this.heightCm,
+    this.piedsH1 = 0,
+    this.piedsH2 = 0,
+    this.piedsH3 = 0,
+    this.selectedPieds = 0,
     this.notes,
-    this.isNewSpecies = false,
     this.species,
   });
 
+  int get totalPieds => piedsH1 + piedsH2 + piedsH3;
+
   factory InventorySpeciesModel.fromMap(Map<String, dynamic> map) => InventorySpeciesModel(
-    id: map['id'],
+    id: map['id'] as String? ?? '',
     inventoryId: map['inventory_id'] ?? map['inventoryId'] ?? '',
     speciesId: map['species_id'] ?? map['speciesId'] ?? '',
-    totalPieds: (map['total_pieds'] ?? map['totalPieds'] ?? 0) as int,
+    piedsH1: (map['pieds_h1'] ?? map['piedsH1'] ?? 0) as int,
+    piedsH2: (map['pieds_h2'] ?? map['piedsH2'] ?? 0) as int,
+    piedsH3: (map['pieds_h3'] ?? map['piedsH3'] ?? 0) as int,
     selectedPieds: (map['selected_pieds'] ?? map['selectedPieds'] ?? 0) as int,
-    healthState: map['health_state'] ?? map['healthState'] ?? 'BON',
-    heightCm: (map['height_cm'] ?? map['heightCm'] as num?)?.toDouble(),
-    isNewSpecies: (map['is_new_species'] ?? map['isNewSpecies'] ?? 0) == 1,
+    notes: map['notes'] as String?,
   );
 
   Map<String, dynamic> toMap() => {
     'speciesId': speciesId,
-    'totalPieds': totalPieds,
+    'piedsH1': piedsH1,
+    'piedsH2': piedsH2,
+    'piedsH3': piedsH3,
     'selectedPieds': selectedPieds,
-    'healthState': healthState,
-    'heightCm': heightCm,
-    'isNewSpecies': isNewSpecies ? 1 : 0,
+    'notes': notes,
   };
 }
 
@@ -494,4 +494,73 @@ class FormationModel {
     orderIndex: (map['order_index'] ?? map['orderIndex'] ?? 0) as int,
     updatedAt: DateTime.tryParse(map['updated_at'] ?? map['updatedAt'] ?? '') ?? DateTime.now(),
   );
+}
+
+// ── RnaOperation ──────────────────────────────────────────────
+
+class RnaOperationModel {
+  final String id;
+  final String localId;
+  String? serverId;
+  final String parcelId;
+  final String userId;
+  final String category; // 'ENTRETIEN' | 'CES_DRS'
+  final String operationType;
+  final int month;
+  final int year;
+  String? notes;
+  String syncStatus;
+  final DateTime createdAt;
+  DateTime updatedAt;
+
+  RnaOperationModel({
+    required this.id,
+    required this.localId,
+    this.serverId,
+    required this.parcelId,
+    required this.userId,
+    required this.category,
+    required this.operationType,
+    required this.month,
+    required this.year,
+    this.notes,
+    this.syncStatus = 'PENDING',
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  bool get isSynced => syncStatus == 'SYNCED';
+
+  String get monthLabel => const [
+    '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  ][month];
+
+  String get monthYear => '$monthLabel $year';
+
+  factory RnaOperationModel.fromMap(Map<String, dynamic> map) => RnaOperationModel(
+    id: map['id'] as String? ?? '',
+    localId: map['local_id'] ?? map['localId'] ?? map['id'] ?? '',
+    serverId: map['server_id'] as String?,
+    parcelId: map['parcel_id'] ?? map['parcelId'] ?? '',
+    userId: map['user_id'] ?? map['userId'] ?? '',
+    category: map['category'] as String? ?? 'ENTRETIEN',
+    operationType: map['operation_type'] ?? map['operationType'] ?? '',
+    month: (map['month'] as int?) ?? 1,
+    year: (map['year'] as int?) ?? DateTime.now().year,
+    notes: map['notes'] as String?,
+    syncStatus: map['sync_status'] ?? map['syncStatus'] ?? 'SYNCED',
+    createdAt: DateTime.tryParse(map['created_at'] ?? map['createdAt'] ?? '') ?? DateTime.now(),
+    updatedAt: DateTime.tryParse(map['updated_at'] ?? map['updatedAt'] ?? '') ?? DateTime.now(),
+  );
+
+  Map<String, dynamic> toSyncPayload() => {
+    'localId': localId,
+    'parcelId': parcelId,
+    'category': category,
+    'operationType': operationType,
+    'month': month,
+    'year': year,
+    'notes': notes,
+  };
 }
